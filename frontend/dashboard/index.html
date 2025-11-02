@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LabSync AI - Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <h1>LabSync AI</h1>
+      <p>AI-Powered Email & Calendar Automation</p>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main>
+      <section class="upcoming-events">
+        <h2>Upcoming Events</h2>
+        <div id="events-list">
+          <p class="loading">Loading events...</p>
+        </div>
+      </section>
+
+      <!-- Quick Actions -->
+      <div class="actions">
+        <a href="reminders.html" class="btn-primary">Set Reminders</a>
+        <button class="btn-secondary" onclick="syncNow()">Sync Now</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

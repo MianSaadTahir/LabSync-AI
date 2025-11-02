@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LabSync AI - Set Reminders</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Set Reminders</h1>
+      <p>Customize how and when you get notified</p>
+    </header>
+
+    <main class="settings-form">
+      <div class="form-group">
+        <label>Default Reminder Time</label>
+        <select id="default-reminder">
+          <option>15 minutes before</option>
+          <option selected>30 minutes before</option>
+          <option>1 hour before</option>
+          <option>1 day before</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Notification Method</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" checked> Telegram</label>
+          <label><input type="checkbox"> Email</label>
+          <label><input type="checkbox"> Calendar Popup</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Auto-Add Events</label>
+        <label class="toggle">
+          <input type="checkbox" checked />
+          <span class="slider"></span> Yes, add without asking
+        </label>
+      </div>
+
+      <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+      <a href="index.html" class="btn-back">← Back to Dashboard</a>
+    </main>
+  </div>
+
+  <script>
+    function saveSettings() {
+      alert("Reminder settings saved!");
+    }
+  </script>
+</body>
+</html>

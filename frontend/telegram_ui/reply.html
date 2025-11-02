@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LabSync AI - Reply</title>
+  <link rel="stylesheet" href="../dashboard/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>LabSync AI</h1>
+      <p>Confirm Event</p>
+    </header>
+
+    <main class="event-preview">
+      <div class="event-card">
+        <h3>Meeting: Team Sync</h3>
+        <p><strong>Date:</strong> Oct 28, 2025 | <strong>Time:</strong> 14:00</p>
+        <p><strong>From:</strong> saad@example.com</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" onclick="addToCalendar()">Add to Calendar</button>
+        <button class="btn-secondary" onclick="editEvent()">Edit</button>
+        <button class="btn-danger" onclick="dismiss()">Dismiss</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function addToCalendar() {
+      alert("Event added to Google Calendar!");
+      // Later: POST to backend
+    }
+    function editEvent() { alert("Edit mode (TBD)"); }
+    function dismiss() { alert("Dismissed"); }
+  </script>
+</body>
+</html>
