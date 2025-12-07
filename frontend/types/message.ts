@@ -1,5 +1,11 @@
 export type MessageTag = "meeting" | "reminder" | "task" | "none";
 
+export interface ExtractedData {
+  domain?: string;
+  budget?: string;
+  timeline?: string;
+}
+
 export interface MessageItem {
   _id: string;
   message_id: string;
@@ -10,5 +16,6 @@ export interface MessageItem {
   createdAt?: string;
   updatedAt?: string;
   raw_payload?: unknown;
+  extracted?: ExtractedData;
 }
 

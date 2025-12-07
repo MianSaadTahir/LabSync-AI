@@ -42,6 +42,7 @@ Update:
 
 - MONGODB_URI
 - TELEGRAM_BOT_TOKEN
+- GEMINI_API_KEY
 - NEXT_PUBLIC_API_BASE_URL
 
 ### 2. Run the Project
@@ -87,7 +88,29 @@ Open the dashboard at:
 - View stored messages:
   `GET http://localhost:4000/api/messages`
 - View dashboard:
-  `http://localhost:3000/events`
+  `http://localhost:3000/messages`
+
+### 5. AI Extraction & MCP
+
+**Extract project info from a message:**
+```bash
+POST http://localhost:4000/api/agent/extract/:messageId
+```
+
+**Route extracted data to client projects:**
+```bash
+POST http://localhost:4000/api/mcp/route
+Body: {
+  "messageId": "...",
+  "extracted": {
+    "domain": "...",
+    "budget": "...",
+    "timeline": "..."
+  }
+}
+```
+
+See `MCP_README.md` for detailed documentation.
 
 ## Contributing
 

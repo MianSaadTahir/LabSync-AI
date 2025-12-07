@@ -12,6 +12,11 @@ const MessageSchema = new mongoose.Schema(
       enum: ['meeting', 'reminder', 'task', 'none'],
       default: 'none',
     },
+    extracted: {
+      domain: { type: String },
+      budget: { type: String },
+      timeline: { type: String },
+    },
   },
   { timestamps: true }
 );
