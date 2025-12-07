@@ -14,7 +14,7 @@ interface MessageCardProps {
   message: MessageItem;
 }
 
-export const EventCard = ({ message }: MessageCardProps) => {
+export const MessageCard = ({ message }: MessageCardProps) => {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
       <div className="flex items-center justify-between gap-2">

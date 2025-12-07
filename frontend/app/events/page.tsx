@@ -1,4 +1,4 @@
-import { EventList } from "../components/EventList";
+import { MessageList } from "../components/MessageList";
 import type { MessageItem } from "@/types/message";
 
 const fetchMessages = async (): Promise<MessageItem[]> => {
@@ -35,7 +35,7 @@ export default async function EventsPage() {
           All messages received from Telegram are displayed here in real-time.
         </p>
       </header>
-      <EventList messages={messages} />
+      <MessageList messages={messages} />
     </main>
   );
 }

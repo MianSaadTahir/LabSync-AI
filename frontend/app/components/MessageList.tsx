@@ -1,11 +1,11 @@
-import { EventCard } from "./EventCard";
+import { MessageCard } from "./MessageCard";
 import type { MessageItem } from "@/types/message";
 
-interface EventListProps {
+interface MessageListProps {
   messages: MessageItem[];
 }
 
-export const EventList = ({ messages }: EventListProps) => {
+export const MessageList = ({ messages }: MessageListProps) => {
   if (!messages.length) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
@@ -17,7 +17,7 @@ export const EventList = ({ messages }: EventListProps) => {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {messages.map((message) => (
-        <EventCard key={message._id} message={message} />
+        <MessageCard key={message._id} message={message} />
       ))}
     </div>
   );
