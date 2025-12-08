@@ -3,9 +3,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import mongoose from 'mongoose';
 import Message from '../models/Message';
 import { successResponse, errorResponse } from '../utils/response';
+import { MeetingExtractionService } from '../services/meetingExtractionService';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+// Legacy endpoint for basic extraction (domain, budget, timeline)
 const extractFromMessage = async (
   req: Request,
   res: Response,
@@ -81,6 +83,28 @@ Return JSON format:
   }
 };
 
+// New endpoint for meeting extraction (Module 1)
+const extractMeeting = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<Response | void> => {
+  try {
+    const { messageId } = req.params;
+
+    if (!messageId) {
+      return errorResponse(res, 400, 'messageId is required');
+    }
+
+    const service = new MeetingExtractionService();
+    const meeting = await service.extractAndSave(messageId);
+
+    return successResponse(res, { data: meeting });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Helper to extract field if JSON parsing fails
 const extractField = (text: string, fieldName: string): string | null => {
   const regex = new RegExp(`"${fieldName}"\\s*:\\s*"([^"]*)"`, 'i');
@@ -88,5 +112,5 @@ const extractField = (text: string, fieldName: string): string | null => {
   return match ? match[1] : null;
 };
 
-export { extractFromMessage };
+export { extractFromMessage, extractMeeting };
 

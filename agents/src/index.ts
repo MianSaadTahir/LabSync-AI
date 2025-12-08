@@ -1,4 +1,3 @@
-// Agents Entry Point
-
-export { BaseAgent } from './base/BaseAgent.js';
-
+// Export all agents
+export { BaseAgent } from './base/BaseAgent';
+export { MeetingExtractionAgent } from './meetingExtraction/MeetingExtractionAgent';

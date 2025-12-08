@@ -8,6 +8,7 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { extractMeetingTool, handleExtractMeeting } from './tools/extractMeeting.js';
 
 // Initialize MCP Server
 const server = new Server(
@@ -35,6 +36,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      extractMeetingTool,
     ],
   };
 });
@@ -56,6 +58,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
+  }
+
+  if (name === 'extract_meeting_details') {
+    return await handleExtractMeeting(request);
   }
 
   throw new Error(`Unknown tool: ${name}`);
