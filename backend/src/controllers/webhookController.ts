@@ -85,15 +85,26 @@ export const handleTelegramWebhook = async (
 
 /**
  * Process extraction asynchronously without blocking the webhook response
+ * Retries automatically if API is overloaded
  */
 async function processExtractionAsync(messageId: string): Promise<void> {
   try {
     const service = getExtractionService();
     await service.extractAndSave(messageId);
-    console.log(`[Webhook] Successfully extracted meeting from message ${messageId}`);
-  } catch (error) {
-    // Error already logged in service, just ensure it doesn't crash
-    console.error(`[Webhook] Extraction error for message ${messageId}:`, error);
+    console.log(`[Webhook] ✅ Successfully extracted meeting from message ${messageId}`);
+  } catch (error: any) {
+    // Check if it's a retryable error (503, overloaded, etc.)
+    const isRetryable = 
+      error?.status === 503 || 
+      error?.statusText === 'Service Unavailable' ||
+      error?.message?.includes('overloaded');
+    
+    if (isRetryable) {
+      console.warn(`[Webhook] ⚠️ API overloaded for message ${messageId}. Will retry automatically on next check.`);
+      // The retry logic is already in the service, but we log it here for visibility
+    } else {
+      console.error(`[Webhook] ❌ Extraction error for message ${messageId}:`, error.message);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import Message from '../models/Message';
 import Meeting, { IMeeting } from '../models/Meeting';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { retryWithBackoff } from '../utils/retryWithBackoff';
 
 // Import budget design service for automatic triggering
 let budgetDesignService: any = null;
@@ -72,7 +73,13 @@ IMPORTANT:
 - Return ONLY the JSON object, no markdown, no explanations
 - Ensure all required fields are present`;
 
-    const result = await this.model.generateContent(prompt);
+    // Retry with exponential backoff for API overload errors
+    const result = await retryWithBackoff(
+      async () => await this.model.generateContent(prompt),
+      3, // max 3 retries
+      2000, // start with 2 second delay
+      10000 // max 10 second delay
+    );
     const response = await result.response;
     const text = response.text();
 

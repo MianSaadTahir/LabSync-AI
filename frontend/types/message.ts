@@ -17,5 +17,21 @@ export interface MessageItem {
   updatedAt?: string;
   raw_payload?: unknown;
   extracted?: ExtractedData;
+  meeting_details?: {
+    project_name?: string;
+    client_details?: {
+      name?: string;
+      email?: string;
+      company?: string;
+    };
+    meeting_date?: string;
+    participants?: string[];
+    estimated_budget?: number;
+    timeline?: string;
+    requirements?: string;
+  };
+  module1_status?: 'pending' | 'extracted' | 'failed';
+  module2_status?: 'pending' | 'designed' | 'failed';
+  module3_status?: 'pending' | 'allocated' | 'failed';
 }
 

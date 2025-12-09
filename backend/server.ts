@@ -3,6 +3,7 @@ import http from 'http';
 import app from './app';
 import connectDB from './src/config/db';
 import { registerTelegramWebhook, getTelegramWebhookInfo } from './src/utils/telegramWebhook';
+import { getBackgroundProcessor } from './src/services/backgroundProcessor';
 
 const PORT = process.env.PORT || 4000;
 
@@ -17,6 +18,10 @@ const startServer = async (): Promise<void> => {
     if (webhookRegistered) {
       await getTelegramWebhookInfo();
     }
+    
+    // Start background processor for retrying failed operations
+    const backgroundProcessor = getBackgroundProcessor();
+    backgroundProcessor.start(30000); // Check every 30 seconds
     
     const server = http.createServer(app);
     
@@ -36,6 +41,17 @@ const startServer = async (): Promise<void> => {
     server.listen(PORT, () => {
       console.log(`✅ Backend running on port ${PORT}`);
       console.log(`   Health check: http://localhost:${PORT}/health`);
+      console.log(`   Background processor started (retries every 30s)`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received, shutting down gracefully...');
+      backgroundProcessor.stop();
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

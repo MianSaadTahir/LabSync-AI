@@ -39,6 +39,9 @@ export default function RootLayout({
                 <Link href="/" className="hover:text-slate-900">
                   Home
                 </Link>
+                <Link href="/auto" className="font-bold text-blue-600 hover:text-blue-700">
+                  Auto Navigate
+                </Link>
                 <Link href="/messages" className="hover:text-slate-900">
                   Messages
                 </Link>

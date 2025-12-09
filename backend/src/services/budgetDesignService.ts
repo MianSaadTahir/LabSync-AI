@@ -2,6 +2,7 @@ import Meeting, { IMeeting } from '../models/Meeting';
 import Budget, { IBudget } from '../models/Budget';
 import Message from '../models/Message';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { retryWithBackoff } from '../utils/retryWithBackoff';
 
 // Define types locally to avoid cross-package import issues
 interface MeetingData {
@@ -64,7 +65,13 @@ export class BudgetDesignService {
 
   private async designBudget(meetingData: MeetingData): Promise<BudgetDesign> {
     const prompt = this.buildBudgetDesignPrompt(meetingData);
-    const result = await this.model.generateContent(prompt);
+    // Retry with exponential backoff for API overload errors
+    const result = await retryWithBackoff(
+      async () => await this.model.generateContent(prompt),
+      3, // max 3 retries
+      2000, // start with 2 second delay
+      10000 // max 10 second delay
+    );
     const response = await result.response;
     const text = response.text();
 
