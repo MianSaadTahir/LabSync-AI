@@ -4,6 +4,7 @@ import app from './app';
 import connectDB from './src/config/db';
 import { registerTelegramWebhook, getTelegramWebhookInfo } from './src/utils/telegramWebhook';
 import { getBackgroundProcessor } from './src/services/backgroundProcessor';
+import { initializeSocket } from './src/services/socketService';
 
 const PORT = process.env.PORT || 4000;
 
@@ -25,6 +26,9 @@ const startServer = async (): Promise<void> => {
     
     const server = http.createServer(app);
     
+    // Initialize Socket.io server
+    initializeSocket(server);
+    
     // Handle server errors (like port already in use)
     server.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
@@ -41,6 +45,7 @@ const startServer = async (): Promise<void> => {
     server.listen(PORT, () => {
       console.log(`✅ Backend running on port ${PORT}`);
       console.log(`   Health check: http://localhost:${PORT}/health`);
+      console.log(`   WebSocket server: ws://localhost:${PORT}`);
       console.log(`   Background processor started (retries every 30s)`);
     });
 

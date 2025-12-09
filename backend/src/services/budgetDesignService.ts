@@ -1,8 +1,9 @@
 import Meeting, { IMeeting } from '../models/Meeting';
 import Budget, { IBudget } from '../models/Budget';
 import Message from '../models/Message';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { retryWithBackoff } from '../utils/retryWithBackoff';
+import { emitToUpdates, SocketEvents } from './socketService';
+import { designBudgetViaMCP } from '../utils/mcpClient';
 
 // Define types locally to avoid cross-package import issues
 interface MeetingData {
@@ -51,57 +52,66 @@ interface BudgetDesign {
 }
 
 export class BudgetDesignService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
-
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    console.log('[BudgetDesignService] Using MCP server for budget design');
   }
 
   private async designBudget(meetingData: MeetingData): Promise<BudgetDesign> {
-    const prompt = this.buildBudgetDesignPrompt(meetingData);
-    // Retry with exponential backoff for API overload errors
+    // Use MCP server (which uses agent) with retry logic
     const result = await retryWithBackoff(
-      async () => await this.model.generateContent(prompt),
+      async () => await designBudgetViaMCP('', meetingData),
       3, // max 3 retries
       2000, // start with 2 second delay
       10000 // max 10 second delay
     );
-    const response = await result.response;
-    const text = response.text();
 
-    const designed = this.parseBudgetDesign(text);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to design budget via MCP');
+    }
+
+    const designed = result.data;
     return this.validateAndNormalize(designed, meetingData.estimated_budget);
   }
 
   private buildBudgetDesignPrompt(meetingData: MeetingData): string {
-    return `Design a comprehensive project budget based on the following meeting details. Return ONLY valid JSON with these exact fields:
+    // Calculate project duration in months for resource cost proration
+    const timelineMonths = this.parseTimelineToMonths(meetingData.timeline);
+    const estimatedHours = this.parseTimelineToHours(meetingData.timeline);
+    
+    // Analyze project complexity from requirements
+    const complexity = this.analyzeProjectComplexity(meetingData.requirements, meetingData.timeline);
+    
+    return `You are an expert project budget analyst. Design a comprehensive, DYNAMIC project budget that accurately reflects the ACTUAL needs of this specific project. 
+
+CRITICAL: Analyze the project requirements carefully and create a budget that VARIES based on:
+- Project complexity and scope
+- Technology stack requirements
+- Team size needed for the timeline
+- Actual resource needs (not generic estimates)
+- Project type (web app, mobile, enterprise, e-commerce, etc.)
+
+Return ONLY valid JSON with these exact fields:
 
 {
-  "total_budget": number (should be close to estimated_budget: ${meetingData.estimated_budget}),
+  "total_budget": number (should be close to estimated_budget: ${meetingData.estimated_budget}, but adjust if requirements suggest different),
   "people_costs": {
-    "lead": { "count": number, "rate": number (hourly), "hours": number, "total": number },
-    "manager": { "count": number, "rate": number (hourly), "hours": number, "total": number },
-    "developer": { "count": number, "rate": number (hourly), "hours": number, "total": number },
-    "designer": { "count": number, "rate": number (hourly), "hours": number, "total": number },
-    "qa": { "count": number, "rate": number (hourly), "hours": number, "total": number }
+    "lead": { "count": number (based on project size), "rate": number (hourly, $80-120), "hours": number (based on actual need), "total": number },
+    "manager": { "count": number (based on team size), "rate": number (hourly, $60-100), "hours": number (based on actual need), "total": number },
+    "developer": { "count": number (DYNAMIC - analyze requirements to determine needed developers), "rate": number (hourly, $50-80), "hours": number (based on timeline and complexity), "total": number },
+    "designer": { "count": number (0 if no design needed, 1-2 if UI/UX required), "rate": number (hourly, $40-70), "hours": number (based on design complexity), "total": number },
+    "qa": { "count": number (based on project size - small: 0-1, medium: 1, large: 1-2), "rate": number (hourly, $35-60), "hours": number (based on testing needs), "total": number }
   },
   "resource_costs": {
-    "electricity": number (monthly cost),
-    "rent": number (monthly cost),
-    "software_licenses": number (total project cost),
-    "hardware": number (total project cost),
-    "other": number (miscellaneous costs)
+    "electricity": number (DYNAMIC - calculate based on team size and timeline: ~$50-100 per person per month × ${timelineMonths} months),
+    "rent": number (DYNAMIC - calculate based on team size: small team (1-3): $1000-1500/month, medium (4-6): $2000-3000/month, large (7+): $3000-5000/month × ${timelineMonths} months),
+    "software_licenses": number (DYNAMIC - analyze requirements: basic projects: $500-1000, medium: $1000-3000, enterprise/complex: $3000-10000. Include: IDEs, cloud services, APIs, tools),
+    "hardware": number (DYNAMIC - calculate based on team needs: small: $1000-2000, medium: $2000-5000, large: $5000-10000. Include: laptops, servers, equipment),
+    "other": number (DYNAMIC - include: domain, hosting, third-party services, training, contingency - typically 5-10% of other costs)
   },
   "breakdown": [
     {
-      "category": "string (e.g., 'Development', 'Design', 'Infrastructure')",
-      "item": "string (specific item name)",
+      "category": "string (e.g., 'Development Tools', 'Cloud Infrastructure', 'Design Assets', 'Third-party APIs')",
+      "item": "string (specific item name based on requirements)",
       "quantity": number,
       "unit_cost": number,
       "total": number
@@ -109,27 +119,140 @@ export class BudgetDesignService {
   ]
 }
 
-Meeting Details:
+PROJECT DETAILS:
 - Project Name: ${meetingData.project_name}
 - Client: ${meetingData.client_details.name}${meetingData.client_details.company ? ` (${meetingData.client_details.company})` : ''}
 - Estimated Budget: $${meetingData.estimated_budget}
-- Timeline: ${meetingData.timeline}
+- Timeline: ${meetingData.timeline} (approximately ${timelineMonths} months, ${estimatedHours} hours)
 - Requirements: ${meetingData.requirements}
 
-IMPORTANT GUIDELINES:
-1. Total budget should be approximately ${meetingData.estimated_budget} (within 10% variance)
-2. People costs should account for 60-70% of total budget
-3. Resource costs should account for 20-30% of total budget
-4. Breakdown should include detailed line items
-5. Calculate hours based on timeline (e.g., "2 weeks" = 80 hours per person, "1 month" = 160 hours)
-6. Use realistic hourly rates:
-   - Lead: $80-120/hour
-   - Manager: $60-100/hour
-   - Developer: $50-80/hour
-   - Designer: $40-70/hour
-   - QA: $35-60/hour
-7. Resource costs should be prorated based on timeline
+ANALYSIS REQUIRED:
+1. **Project Type Analysis**: Identify if this is web app, mobile app, e-commerce, enterprise software, API, etc.
+2. **Complexity Assessment**: ${complexity.assessment}
+3. **Team Size Calculation**: Based on timeline (${meetingData.timeline}) and requirements, determine:
+   - How many developers are actually needed?
+   - Is design work required? (UI/UX, graphics, branding)
+   - What level of QA is needed?
+   - Does this need a dedicated manager or can lead handle it?
+4. **Resource Needs**: Based on project type and requirements:
+   - What software/licenses are needed? (e.g., AWS, Azure, design tools, APIs)
+   - What hardware is required? (servers, development machines, testing devices)
+   - What infrastructure costs? (hosting, CDN, databases, monitoring)
+
+DYNAMIC CALCULATION RULES:
+1. **Team Size**: 
+   - Small project (< 1 month, simple requirements): 1-2 developers, 0-1 designer, 0-1 QA
+   - Medium project (1-3 months, moderate complexity): 2-4 developers, 1 designer, 1 QA
+   - Large project (3+ months, complex): 4+ developers, 1-2 designers, 1-2 QA
+   - Adjust based on actual requirements analysis
+
+2. **Hours Calculation**:
+   - Calculate based on timeline: ${estimatedHours} total hours available
+   - Distribute hours based on role needs (developers need more hours than managers)
+   - Lead: 20-40% of timeline hours (oversight, architecture)
+   - Manager: 30-50% of timeline hours (coordination, planning)
+   - Developers: 80-100% of timeline hours (full-time work)
+   - Designers: 40-60% of timeline hours (if needed)
+   - QA: 30-50% of timeline hours (testing phase)
+
+3. **Resource Costs** (MUST BE DYNAMIC):
+   - **Electricity**: $50-100 per team member per month × ${timelineMonths} months
+   - **Rent**: Based on team size (see above) × ${timelineMonths} months
+   - **Software Licenses**: Analyze requirements - what tools/services are needed?
+     * Basic: VS Code (free), GitHub (free), basic hosting ($50-200/month)
+     * Medium: Cloud services (AWS/Azure: $200-1000/month), design tools ($50-200/month), CI/CD ($50-200/month)
+     * Enterprise: Enterprise cloud ($1000-5000/month), enterprise tools, monitoring, security tools
+   - **Hardware**: Based on team size and project needs
+     * Development machines: $1000-2000 per developer
+     * Servers/infrastructure: $500-5000 depending on scale
+     * Testing devices: $200-1000 for mobile/web testing
+   - **Other**: Domain ($10-50), SSL ($50-200), third-party APIs ($100-1000), training, contingency
+
+4. **Breakdown Items**: Create specific line items based on requirements:
+   - If web app: hosting, domain, SSL, CDN, database
+   - If mobile: app store fees, testing devices, mobile-specific tools
+   - If e-commerce: payment gateway, inventory system, shipping integration
+   - If enterprise: security tools, compliance, enterprise infrastructure
+
+CRITICAL REQUIREMENTS:
+1. Total budget should be approximately $${meetingData.estimated_budget} (within 10% variance, but adjust if requirements clearly indicate different needs)
+2. People costs: 60-70% of total budget
+3. Resource costs: 20-30% of total budget (DYNAMIC based on actual needs)
+4. Breakdown: 10-20% of total budget (specific items from requirements)
+5. **DO NOT use generic/static values** - every cost must be justified by the project requirements
+6. **Vary team size** based on project complexity and timeline
+7. **Vary resource costs** based on project type and actual needs
 8. Return ONLY the JSON object, no markdown, no explanations`;
+  }
+
+  private parseTimelineToMonths(timeline: string): number {
+    const lower = timeline.toLowerCase();
+    const weeksMatch = lower.match(/(\d+)\s*week/);
+    const monthsMatch = lower.match(/(\d+)\s*month/);
+    const daysMatch = lower.match(/(\d+)\s*day/);
+    
+    if (weeksMatch) {
+      return Math.max(0.5, parseInt(weeksMatch[1]) / 4.33); // Convert weeks to months
+    }
+    if (monthsMatch) {
+      return Math.max(0.5, parseInt(monthsMatch[1]));
+    }
+    if (daysMatch) {
+      return Math.max(0.5, parseInt(daysMatch[1]) / 30);
+    }
+    // Default: assume 1 month if unclear
+    return 1;
+  }
+
+  private parseTimelineToHours(timeline: string): number {
+    const months = this.parseTimelineToMonths(timeline);
+    // Assume 160 working hours per month (40 hours/week × 4 weeks)
+    return Math.round(months * 160);
+  }
+
+  private analyzeProjectComplexity(requirements: string, timeline: string): { assessment: string } {
+    const lowerReq = requirements.toLowerCase();
+    const timelineMonths = this.parseTimelineToMonths(timeline);
+    
+    let complexity = 'medium';
+    let indicators: string[] = [];
+    
+    // High complexity indicators
+    if (lowerReq.includes('enterprise') || lowerReq.includes('scalable') || lowerReq.includes('microservices')) {
+      complexity = 'high';
+      indicators.push('enterprise-scale');
+    }
+    if (lowerReq.includes('ai') || lowerReq.includes('machine learning') || lowerReq.includes('ml')) {
+      complexity = 'high';
+      indicators.push('AI/ML integration');
+    }
+    if (lowerReq.includes('real-time') || lowerReq.includes('websocket') || lowerReq.includes('socket')) {
+      complexity = 'high';
+      indicators.push('real-time features');
+    }
+    if (lowerReq.includes('payment') || lowerReq.includes('e-commerce') || lowerReq.includes('transaction')) {
+      complexity = 'high';
+      indicators.push('payment processing');
+    }
+    
+    // Low complexity indicators
+    if (lowerReq.includes('simple') || lowerReq.includes('basic') || lowerReq.includes('landing page')) {
+      complexity = 'low';
+      indicators.push('simple scope');
+    }
+    if (timelineMonths < 0.5) {
+      complexity = 'low';
+      indicators.push('short timeline');
+    }
+    
+    // Medium complexity (default)
+    if (indicators.length === 0) {
+      indicators.push('standard project');
+    }
+    
+    const assessment = `Project complexity: ${complexity}. Indicators: ${indicators.join(', ')}. Timeline: ${timelineMonths.toFixed(1)} months. This suggests ${complexity === 'high' ? 'larger team and more resources' : complexity === 'low' ? 'smaller team and minimal resources' : 'moderate team and standard resources'}.`;
+    
+    return { assessment };
   }
 
   private parseBudgetDesign(text: string): any {
@@ -303,6 +426,19 @@ IMPORTANT GUIDELINES:
         if (message) {
           message.module2_status = 'designed';
           await message.save();
+
+          // Emit WebSocket events for status update and budget designed
+          emitToUpdates(SocketEvents.MESSAGE_STATUS_UPDATED, {
+            messageId: message._id.toString(),
+            module2_status: 'designed',
+            message: message.toObject(),
+          });
+
+          emitToUpdates(SocketEvents.BUDGET_DESIGNED, {
+            budget: budget.toObject(),
+            meetingId: meeting._id.toString(),
+            messageId: message._id.toString(),
+          });
         }
       }
 

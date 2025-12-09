@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import Message from '../models/Message';
 import { successResponse, errorResponse } from '../utils/response';
 import { MeetingExtractionService } from '../services/meetingExtractionService';
+import { emitToUpdates, SocketEvents } from '../services/socketService';
 
 interface TelegramUpdate {
   message?: TelegramMessage;
@@ -67,6 +68,11 @@ export const handleTelegramWebhook = async (
     );
 
     console.log(`[Webhook] ✅ Message saved to database: ${storedMessage._id}`);
+
+    // Emit WebSocket event for new message
+    emitToUpdates(SocketEvents.MESSAGE_CREATED, {
+      message: storedMessage.toObject(),
+    });
 
     // Automatically trigger meeting extraction in background (non-blocking)
     if (storedMessage && message.text && message.text.trim().length > 0) {

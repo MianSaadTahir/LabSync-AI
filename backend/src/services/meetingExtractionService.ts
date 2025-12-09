@@ -1,7 +1,8 @@
 import Message from '../models/Message';
 import Meeting, { IMeeting } from '../models/Meeting';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { retryWithBackoff } from '../utils/retryWithBackoff';
+import { emitToUpdates, SocketEvents } from './socketService';
+import { extractMeetingViaMCP } from '../utils/mcpClient';
 
 // Import budget design service for automatic triggering
 let budgetDesignService: any = null;
@@ -36,74 +37,24 @@ interface MeetingDetails {
 }
 
 export class MeetingExtractionService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
-
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    console.log('[MeetingExtractionService] Using MCP server for meeting extraction');
   }
 
   private async extractMeetingDetails(messageText: string): Promise<MeetingDetails> {
-    const prompt = `Extract meeting details from the following Telegram message. Return ONLY valid JSON with these exact fields:
-
-{
-  "project_name": "string (required)",
-  "client_details": {
-    "name": "string (required)",
-    "email": "string (optional, null if not found)",
-    "company": "string (optional, null if not found)"
-  },
-  "meeting_date": "ISO 8601 date string (required, use current date if not specified)",
-  "participants": ["array of participant names or usernames"],
-  "estimated_budget": number (required, 0 if not specified),
-  "timeline": "string (required, e.g., '2 weeks', '1 month', '3 months')",
-  "requirements": "string (required, detailed project requirements)"
-}
-
-Message: "${messageText}"
-
-IMPORTANT:
-- Extract all information accurately
-- If a field is not found, use reasonable defaults (e.g., current date for meeting_date, 0 for budget, empty array for participants)
-- Return ONLY the JSON object, no markdown, no explanations
-- Ensure all required fields are present`;
-
-    // Retry with exponential backoff for API overload errors
+    // Use MCP server (which uses agent) with retry logic
     const result = await retryWithBackoff(
-      async () => await this.model.generateContent(prompt),
+      async () => await extractMeetingViaMCP('', messageText),
       3, // max 3 retries
       2000, // start with 2 second delay
       10000 // max 10 second delay
     );
-    const response = await result.response;
-    const text = response.text();
 
-    // Parse JSON from response
-    let extracted: any;
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        extracted = JSON.parse(jsonMatch[0]);
-      } else {
-        extracted = JSON.parse(text);
-      }
-    } catch (error) {
-      // Fallback extraction
-      extracted = {
-        project_name: 'Unnamed Project',
-        client_details: { name: 'Unknown Client', email: null, company: null },
-        meeting_date: new Date().toISOString(),
-        participants: [],
-        estimated_budget: 0,
-        timeline: 'Not specified',
-        requirements: messageText.substring(0, 500),
-      };
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to extract meeting via MCP');
     }
+
+    const extracted = result.data;
 
     // Validate and normalize
     return {
@@ -117,7 +68,7 @@ IMPORTANT:
       participants: Array.isArray(extracted.participants) ? extracted.participants : [],
       estimated_budget: typeof extracted.estimated_budget === 'number' 
         ? extracted.estimated_budget 
-        : parseInt(extracted.estimated_budget) || 0,
+        : parseInt(String(extracted.estimated_budget)) || 0,
       timeline: extracted.timeline || 'Not specified',
       requirements: extracted.requirements || 'No requirements specified',
     };
@@ -175,6 +126,13 @@ IMPORTANT:
       message.module1_status = 'extracted';
       await message.save();
 
+      // Emit WebSocket event for status update
+      emitToUpdates(SocketEvents.MESSAGE_STATUS_UPDATED, {
+        messageId: message._id.toString(),
+        module1_status: 'extracted',
+        message: message.toObject(),
+      });
+
       // Create or update Meeting document
       const meeting = await Meeting.findOneAndUpdate(
         { messageId: message._id },
@@ -192,8 +150,14 @@ IMPORTANT:
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      // Automatically trigger budget design in background (non-blocking)
+      // Emit WebSocket event for meeting extracted
       if (meeting) {
+        emitToUpdates(SocketEvents.MEETING_EXTRACTED, {
+          meeting: meeting.toObject(),
+          messageId: message._id.toString(),
+        });
+
+        // Automatically trigger budget design in background (non-blocking)
         triggerBudgetDesignAsync(meeting._id.toString()).catch((error) => {
           console.error('[MeetingExtractionService] Background budget design failed:', error);
         });
