@@ -1,16 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { MeetingList } from "../components/MeetingList";
+import { useSocket } from "../hooks/useSocket";
 import type { MeetingItem } from "@/types/meeting";
-import type { MessageItem } from "@/types/message";
 
 export const MeetingsClient = () => {
-  const router = useRouter();
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  const { isConnected, onMeetingExtracted, onStatusUpdated } = useSocket();
 
   const fetchMeetings = async () => {
     try {
@@ -27,25 +26,6 @@ export const MeetingsClient = () => {
       }
       const payload = await res.json();
       setMeetings(payload.data ?? []);
-      
-      // Check if budget is designed and auto-navigate
-      const messagesRes = await fetch(`${baseUrl}/api/messages`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (messagesRes.ok) {
-        const messagesData = await messagesRes.json();
-        const messages = messagesData.data || [];
-        if (messages.length > 0) {
-          const latest = messages[0];
-          if (latest.module2_status === 'designed') {
-            // Wait a moment then navigate to budgets
-            setTimeout(() => {
-              router.push('/budgets');
-            }, 2000);
-          }
-        }
-      }
     } catch (error) {
       console.error("Meetings fetch error:", error);
     } finally {
@@ -53,12 +33,40 @@ export const MeetingsClient = () => {
     }
   };
 
+  // Fetch on mount
   useEffect(() => {
     fetchMeetings();
-    // Auto-refresh every 5 seconds (reduced to prevent excessive API calls)
-    const interval = setInterval(fetchMeetings, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Fallback polling if WebSocket is disconnected (every 10 seconds)
+  useEffect(() => {
+    if (!isConnected) {
+      const interval = setInterval(fetchMeetings, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
+  // Listen for WebSocket events
+  useEffect(() => {
+    const unsubscribe1 = onMeetingExtracted((data) => {
+      if (data.meeting) {
+        // Refresh meetings list
+        fetchMeetings();
+      }
+    });
+
+    const unsubscribe2 = onStatusUpdated((data) => {
+      if (data.message && data.message.module2_status === 'designed') {
+        // Refresh meetings list when budget is designed (status update)
+        fetchMeetings();
+      }
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, [onMeetingExtracted, onStatusUpdated]);
 
   if (loading) {
     return (
@@ -82,7 +90,7 @@ export const MeetingsClient = () => {
             </p>
           </div>
           <div className="text-xs text-slate-400">
-            Auto-refreshing every 5s
+            {isConnected ? '🟢 Real-time updates' : '🟡 Polling every 10s'}
           </div>
         </div>
       </header>

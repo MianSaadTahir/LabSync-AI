@@ -25,3 +25,5 @@ export const AllocationList = ({ allocations }: AllocationListProps) => {
 
 
 
+
+

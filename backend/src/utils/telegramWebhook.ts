@@ -57,8 +57,9 @@ export function extractWebhookUrl(): string | null {
 /**
  * Registers the webhook URL with Telegram Bot API using YOUR bot token
  * This ensures the webhook is registered for YOUR bot, not someone else's
+ * Includes automatic retry logic with exponential backoff
  */
-export async function registerTelegramWebhook(): Promise<boolean> {
+export async function registerTelegramWebhook(maxRetries: number = 3): Promise<boolean> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const webhookUrl = extractWebhookUrl();
 
@@ -74,80 +75,193 @@ export async function registerTelegramWebhook(): Promise<boolean> {
     return false;
   }
 
+  const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`;
+  const fullUrl = `${telegramApiUrl}?url=${encodeURIComponent(webhookUrl)}`;
+  
+  console.log(`[Telegram Webhook] Registering webhook for your bot...`);
+  console.log(`   Using bot token: ${botToken.substring(0, 10)}...`);
+  console.log(`   Webhook URL: ${webhookUrl}`);
+  console.log(`   Telegram API URL: ${telegramApiUrl}`);
+  console.log(`   Max retries: ${maxRetries}`);
+  
+  // Quick connectivity test first
   try {
-    // Use YOUR bot token to register the webhook
-    // This ensures Telegram sends updates for YOUR bot to your webhook URL
-    const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`;
-    const fullUrl = `${telegramApiUrl}?url=${encodeURIComponent(webhookUrl)}`;
-    
-    console.log(`[Telegram Webhook] Registering webhook for your bot...`);
-    console.log(`   Using bot token: ${botToken.substring(0, 10)}...`);
-    console.log(`   Webhook URL: ${webhookUrl}`);
-    console.log(`   Telegram API URL: ${telegramApiUrl}`);
-    
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+    const testController = new AbortController();
+    const testTimeout = setTimeout(() => testController.abort(), 5000);
+    const testResponse = await fetch('https://api.telegram.org', { 
+      method: 'HEAD',
+      signal: testController.signal
+    });
+    clearTimeout(testTimeout);
+    console.log(`   ✅ Connectivity test passed (status: ${testResponse.status})`);
+  } catch (testError) {
+    console.warn(`   ⚠️  Connectivity test failed: ${testError instanceof Error ? testError.message : 'Unknown error'}`);
+    console.warn(`   This may indicate network/firewall issues, but will still attempt webhook registration`);
+  }
+
+  // Retry logic with exponential backoff
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ HTTP error! Status: ${response.status}`);
-        console.error(`   Response: ${errorText}`);
-        return false;
+      if (attempt > 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 2), 10000); // Exponential backoff, max 10s
+        console.log(`[Telegram Webhook] Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      const data = await response.json() as { ok: boolean; description?: string; error_code?: number };
+      // Create AbortController for timeout (increased to 30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const response = await fetch(fullUrl, {
+          method: 'GET',
+          signal: controller.signal,
+        });
 
-      if (data.ok) {
-        console.log(`✅ Telegram webhook registered successfully for YOUR bot`);
-        console.log(`   Bot token: ${botToken.substring(0, 10)}...`);
-        console.log(`   Webhook URL: ${webhookUrl}`);
-        console.log(`   Telegram will now send updates to your webhook endpoint`);
-        return true;
-      } else {
-        console.error(`❌ Failed to register Telegram webhook:`, data.description || 'Unknown error');
-        if (data.error_code) {
-          console.error(`   Error code: ${data.error_code}`);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ HTTP error! Status: ${response.status}`);
+          console.error(`   Response: ${errorText}`);
+          
+          // Don't retry on 4xx errors (client errors)
+          if (response.status >= 400 && response.status < 500) {
+            console.error(`   Client error detected, not retrying`);
+            return false;
+          }
+          
+          // Retry on 5xx errors (server errors)
+          if (attempt < maxRetries) {
+            console.log(`   Server error, will retry...`);
+            continue;
+          }
+          return false;
+        }
+
+        const data = await response.json() as { ok: boolean; result?: boolean; description?: string; error_code?: number };
+
+        if (data.ok) {
+          // Check if webhook is already set (result: true with description)
+          if (data.result === true && data.description?.toLowerCase().includes('already set')) {
+            if (attempt > 1) {
+              console.log(`✅ Telegram webhook already registered (verified on attempt ${attempt})`);
+            } else {
+              console.log(`✅ Telegram webhook is already registered for YOUR bot`);
+            }
+            console.log(`   Bot token: ${botToken.substring(0, 10)}...`);
+            console.log(`   Webhook URL: ${webhookUrl}`);
+            console.log(`   Description: ${data.description}`);
+            console.log(`   Telegram will send updates to your webhook endpoint`);
+            return true;
+          }
+          
+          // New webhook registration successful
+          if (attempt > 1) {
+            console.log(`✅ Telegram webhook registered successfully on attempt ${attempt}`);
+          } else {
+            console.log(`✅ Telegram webhook registered successfully for YOUR bot`);
+          }
+          console.log(`   Bot token: ${botToken.substring(0, 10)}...`);
+          console.log(`   Webhook URL: ${webhookUrl}`);
+          if (data.description) {
+            console.log(`   Description: ${data.description}`);
+          }
+          console.log(`   Telegram will now send updates to your webhook endpoint`);
+          return true;
+        } else {
+          console.error(`❌ Failed to register Telegram webhook:`, data.description || 'Unknown error');
+          if (data.error_code) {
+            console.error(`   Error code: ${data.error_code}`);
+          }
+          
+          // Don't retry on certain error codes
+          if (data.error_code === 401 || data.error_code === 400) {
+            console.error(`   Invalid request, not retrying`);
+            return false;
+          }
+          
+          // Retry on other errors
+          if (attempt < maxRetries) {
+            console.log(`   Will retry...`);
+            continue;
+          }
+          return false;
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error(`❌ Request timeout: Telegram API did not respond within 30 seconds`);
+          if (attempt < maxRetries) {
+            console.log(`   Will retry...`);
+            continue;
+          }
+          console.error(`   All retry attempts exhausted`);
+        } else {
+          // Network errors - retry with detailed error info
+          const errorMessage = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+          const errorName = fetchError instanceof Error ? fetchError.name : 'Unknown';
+          const errorCause = fetchError instanceof Error && 'cause' in fetchError ? fetchError.cause : null;
+          
+          console.error(`❌ Network error (attempt ${attempt}/${maxRetries}): ${errorMessage}`);
+          console.error(`   Error type: ${errorName}`);
+          
+          // Provide more specific error details
+          if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo')) {
+            console.error(`   DNS resolution failed - cannot resolve api.telegram.org`);
+            console.error(`   Check your internet connection and DNS settings`);
+          } else if (errorMessage.includes('ECONNREFUSED')) {
+            console.error(`   Connection refused - Telegram API may be down or blocked`);
+          } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('timeout')) {
+            console.error(`   Connection timeout - network may be slow or unstable`);
+          } else if (errorMessage.includes('CERT') || errorMessage.includes('SSL') || errorMessage.includes('TLS')) {
+            console.error(`   SSL/TLS certificate error - check system certificates`);
+          } else if (errorCause) {
+            console.error(`   Error cause:`, errorCause);
+          }
+          
+          if (attempt < maxRetries) {
+            console.log(`   Will retry...`);
+            continue;
+          } else {
+            console.error(`   All retry attempts exhausted`);
+            console.error(`\n💡 Troubleshooting tips:`);
+            console.error(`   1. Check your internet connection`);
+            console.error(`   2. Verify Telegram API is accessible: https://api.telegram.org`);
+            console.error(`   3. Check if firewall/proxy is blocking the request`);
+            console.error(`   4. Try manually registering: ${fullUrl}`);
+            console.error(`   5. Check DNS resolution: nslookup api.telegram.org\n`);
+          }
         }
         return false;
       }
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorName = error instanceof Error ? error.name : 'Unknown';
       
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error(`❌ Request timeout: Telegram API did not respond within 10 seconds`);
-        console.error(`   Check your internet connection and try again`);
-      } else {
-        throw fetchError; // Re-throw to be caught by outer catch
+      console.error(`❌ Error registering Telegram webhook (attempt ${attempt}/${maxRetries}):`, errorMessage);
+      console.error(`   Error type: ${errorName}`);
+      
+      if (attempt < maxRetries) {
+        console.log(`   Will retry...`);
+        continue;
       }
+      
+      // Provide helpful troubleshooting tips on final failure
+      if (errorMessage.includes('fetch failed') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
+        console.error(`\n💡 Troubleshooting tips:`);
+        console.error(`   1. Check your internet connection`);
+        console.error(`   2. Verify Telegram API is accessible: https://api.telegram.org`);
+        console.error(`   3. Check if firewall/proxy is blocking the request`);
+        console.error(`   4. Try manually registering: ${fullUrl}\n`);
+      }
+      
       return false;
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorName = error instanceof Error ? error.name : 'Unknown';
-    
-    console.error(`❌ Error registering Telegram webhook:`, errorMessage);
-    console.error(`   Error type: ${errorName}`);
-    
-    // Provide helpful troubleshooting tips
-    if (errorMessage.includes('fetch failed') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
-      console.error(`\n💡 Troubleshooting tips:`);
-      console.error(`   1. Check your internet connection`);
-      console.error(`   2. Verify Telegram API is accessible: https://api.telegram.org`);
-      console.error(`   3. Check if firewall/proxy is blocking the request`);
-      console.error(`   4. Try manually registering: ${`https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`}\n`);
-    }
-    
-    return false;
   }
+
+  return false;
 }
 
 /**

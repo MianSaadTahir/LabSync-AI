@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { MessageList } from "../components/MessageList";
 import { StatusIndicator } from "../components/StatusIndicator";
 import { ConnectionStatus } from "../components/ConnectionStatus";
+import { useSocket } from "../hooks/useSocket";
 import type { MessageItem } from "@/types/message";
 
 export const MessagesClient = () => {
-  const router = useRouter();
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  const { isConnected, onMessageCreated, onStatusUpdated } = useSocket();
 
   const fetchMessages = async () => {
     try {
@@ -20,7 +20,6 @@ export const MessagesClient = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        // Remove Next.js server-side options - not valid in client-side fetch
       });
       if (!res.ok) {
         console.error("Failed to load messages:", res.status, res.statusText);
@@ -30,17 +29,6 @@ export const MessagesClient = () => {
       const payload = await res.json();
       const fetchedMessages = payload.data ?? [];
       setMessages(fetchedMessages);
-      
-      // Auto-navigate to next page when status changes
-      if (fetchedMessages.length > 0) {
-        const latest = fetchedMessages[0];
-        if (latest.module1_status === 'extracted') {
-          // Wait a moment then navigate to meetings
-          setTimeout(() => {
-            router.push('/meetings');
-          }, 2000);
-        }
-      }
     } catch (error) {
       console.error("Messages fetch error:", error);
       // Don't clear messages on error, just log it
@@ -50,12 +38,62 @@ export const MessagesClient = () => {
     }
   };
 
+  // Fetch on mount
   useEffect(() => {
     fetchMessages();
-    // Auto-refresh every 5 seconds (reduced to prevent excessive API calls)
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Fallback polling if WebSocket is disconnected (every 10 seconds)
+  useEffect(() => {
+    if (!isConnected) {
+      const interval = setInterval(fetchMessages, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
+  // Listen for WebSocket events
+  useEffect(() => {
+    const unsubscribe1 = onMessageCreated((data) => {
+      if (data.message) {
+        // Update messages list
+        setMessages((prev) => {
+          const index = prev.findIndex((m) => m._id === data.message!._id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = data.message!;
+            return updated.sort((a, b) => 
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+          }
+          return [data.message!, ...prev].sort((a, b) => 
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+        });
+      }
+    });
+
+    const unsubscribe2 = onStatusUpdated((data) => {
+      if (data.message) {
+        // Update messages list
+        setMessages((prev) => {
+          const index = prev.findIndex((m) => m._id === data.message!._id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = data.message!;
+            return updated.sort((a, b) => 
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+          }
+          return prev;
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, [onMessageCreated, onStatusUpdated]);
 
   if (loading) {
     return (
@@ -97,7 +135,7 @@ export const MessagesClient = () => {
         <>
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm font-medium text-blue-900 mb-2">
-              Processing Status (Auto-updates every 3 seconds)
+              Processing Status {isConnected ? '(Real-time updates via WebSocket)' : '(Polling every 10s - WebSocket disconnected)'}
             </p>
             <div className="space-y-2">
               {messages.slice(0, 3).map((msg) => (

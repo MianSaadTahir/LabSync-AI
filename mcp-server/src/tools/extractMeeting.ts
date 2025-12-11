@@ -1,33 +1,36 @@
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-// Note: MCP server communicates with backend via HTTP API, not direct imports
-// This tool will be called from backend, so we'll handle it differently
+import type { z } from 'zod';
+// Import from built dist files for runtime
+import { MeetingExtractionAgent } from '../../../agents/dist/meetingExtraction/MeetingExtractionAgent.js';
 
 export const extractMeetingTool = {
   name: 'extract_meeting_details',
-  description: 'Extract structured meeting details from a Telegram message using AI. Automatically processes the message and saves meeting information.',
+  description: 'Extract structured meeting details from a Telegram message using AI agent. Returns meeting information including project name, client details, budget, timeline, and requirements.',
   inputSchema: {
     type: 'object',
     properties: {
-      messageId: {
+      messageText: {
         type: 'string',
-        description: 'The MongoDB _id of the message to extract meeting details from',
+        description: 'The text content of the Telegram message to extract meeting details from',
       },
     },
-    required: ['messageId'],
+    required: ['messageText'],
   },
 };
 
-export async function handleExtractMeeting(request: typeof CallToolRequestSchema._type): Promise<any> {
-  const { messageId } = request.params.arguments as { messageId: string };
+type CallToolRequest = z.infer<typeof CallToolRequestSchema>;
 
-  if (!messageId) {
+export async function handleExtractMeeting(request: CallToolRequest): Promise<any> {
+  const { messageText } = request.params.arguments as { messageText: string };
+
+  if (!messageText) {
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
             success: false,
-            error: 'messageId is required',
+            error: 'messageText is required',
           }),
         },
       ],
@@ -36,19 +39,16 @@ export async function handleExtractMeeting(request: typeof CallToolRequestSchema
   }
 
   try {
-    // Call backend API to extract meeting
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/agent/extract-meeting/${messageId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Failed to extract meeting');
+    // Use agent directly (MCP → Agent → AI)
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const result = await response.json();
+    const agent = new MeetingExtractionAgent(apiKey);
+    console.log('[MCP] Using MeetingExtractionAgent to extract meeting details');
+    
+    const extracted = await agent.process(messageText);
 
     return {
       content: [
@@ -56,12 +56,13 @@ export async function handleExtractMeeting(request: typeof CallToolRequestSchema
           type: 'text',
           text: JSON.stringify({
             success: true,
-            data: result.data,
+            data: extracted,
           }),
         },
       ],
     };
   } catch (error) {
+    console.error('[MCP] Error extracting meeting:', error);
     return {
       content: [
         {

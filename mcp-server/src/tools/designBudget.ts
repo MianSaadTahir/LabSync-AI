@@ -1,31 +1,46 @@
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import type { z } from 'zod';
+// Import from built dist files for runtime
+import { BudgetDesignAgent, MeetingData as AgentMeetingData } from '../../../agents/dist/budgetDesign/BudgetDesignAgent.js';
 
 export const designBudgetTool = {
   name: 'design_budget',
-  description: 'Design a comprehensive project budget from meeting data. Automatically processes the meeting and creates a detailed budget with people costs and resource costs.',
+  description: 'Design a comprehensive, dynamic project budget from meeting data using AI agent. Creates detailed budget with people costs, resource costs, and breakdown based on project requirements.',
   inputSchema: {
     type: 'object',
     properties: {
-      meetingId: {
-        type: 'string',
-        description: 'The MongoDB _id of the meeting to design budget for',
+      meetingData: {
+        type: 'object',
+        description: 'Meeting data including project name, client details, estimated budget, timeline, and requirements',
+        properties: {
+          project_name: { type: 'string' },
+          client_details: { type: 'object' },
+          meeting_date: { type: 'string' },
+          participants: { type: 'array' },
+          estimated_budget: { type: 'number' },
+          timeline: { type: 'string' },
+          requirements: { type: 'string' },
+        },
+        required: ['project_name', 'client_details', 'estimated_budget', 'timeline', 'requirements'],
       },
     },
-    required: ['meetingId'],
+    required: ['meetingData'],
   },
 };
 
-export async function handleDesignBudget(request: typeof CallToolRequestSchema._type): Promise<any> {
-  const { meetingId } = request.params.arguments as { meetingId: string };
+type CallToolRequest = z.infer<typeof CallToolRequestSchema>;
 
-  if (!meetingId) {
+export async function handleDesignBudget(request: CallToolRequest): Promise<any> {
+  const { meetingData } = request.params.arguments as { meetingData: any };
+
+  if (!meetingData) {
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
             success: false,
-            error: 'meetingId is required',
+            error: 'meetingData is required',
           }),
         },
       ],
@@ -34,19 +49,27 @@ export async function handleDesignBudget(request: typeof CallToolRequestSchema._
   }
 
   try {
-    // Call backend API to design budget
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
-    const response = await fetch(`${backendUrl}/api/budgets/design/${meetingId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Failed to design budget');
+    // Use agent directly (MCP → Agent → AI)
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const result = await response.json();
+    const agent = new BudgetDesignAgent(apiKey);
+    console.log('[MCP] Using BudgetDesignAgent to design budget');
+
+    // Convert to agent format
+    const agentMeetingData: AgentMeetingData = {
+      project_name: meetingData.project_name,
+      client_details: meetingData.client_details,
+      meeting_date: meetingData.meeting_date ? new Date(meetingData.meeting_date) : new Date(),
+      participants: meetingData.participants || [],
+      estimated_budget: meetingData.estimated_budget || 0,
+      timeline: meetingData.timeline || 'Not specified',
+      requirements: meetingData.requirements || '',
+    };
+
+    const budget = await agent.process(agentMeetingData);
 
     return {
       content: [
@@ -54,18 +77,13 @@ export async function handleDesignBudget(request: typeof CallToolRequestSchema._
           type: 'text',
           text: JSON.stringify({
             success: true,
-            data: {
-              budgetId: result.data._id,
-              project_name: result.data.project_name,
-              total_budget: result.data.total_budget,
-              people_costs: result.data.people_costs,
-              resource_costs: result.data.resource_costs,
-            },
+            data: budget,
           }),
         },
       ],
     };
   } catch (error) {
+    console.error('[MCP] Error designing budget:', error);
     return {
       content: [
         {

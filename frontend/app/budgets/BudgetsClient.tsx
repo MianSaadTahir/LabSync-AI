@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { BudgetList } from "../components/BudgetList";
+import { useSocket } from "../hooks/useSocket";
 import type { BudgetItem } from "@/types/budget";
 
 export const BudgetsClient = () => {
-  const router = useRouter();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  const { isConnected, onBudgetDesigned, onStatusUpdated } = useSocket();
 
   const fetchBudgets = async () => {
     try {
@@ -26,25 +26,6 @@ export const BudgetsClient = () => {
       }
       const payload = await res.json();
       setBudgets(payload.data ?? []);
-      
-      // Check if allocation is done and auto-navigate
-      const messagesRes = await fetch(`${baseUrl}/api/messages`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (messagesRes.ok) {
-        const messagesData = await messagesRes.json();
-        const messages = messagesData.data || [];
-        if (messages.length > 0) {
-          const latest = messages[0];
-          if (latest.module3_status === 'allocated') {
-            // Wait a moment then navigate to allocations
-            setTimeout(() => {
-              router.push('/allocations');
-            }, 2000);
-          }
-        }
-      }
     } catch (error) {
       console.error("Budgets fetch error:", error);
     } finally {
@@ -52,12 +33,40 @@ export const BudgetsClient = () => {
     }
   };
 
+  // Fetch on mount
   useEffect(() => {
     fetchBudgets();
-    // Auto-refresh every 5 seconds (reduced to prevent excessive API calls)
-    const interval = setInterval(fetchBudgets, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Fallback polling if WebSocket is disconnected (every 10 seconds)
+  useEffect(() => {
+    if (!isConnected) {
+      const interval = setInterval(fetchBudgets, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
+  // Listen for WebSocket events
+  useEffect(() => {
+    const unsubscribe1 = onBudgetDesigned((data) => {
+      if (data.budget) {
+        // Refresh budgets list
+        fetchBudgets();
+      }
+    });
+
+    const unsubscribe2 = onStatusUpdated((data) => {
+      if (data.message && data.message.module3_status === 'allocated') {
+        // Refresh budgets list when allocation is done (status update)
+        fetchBudgets();
+      }
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, [onBudgetDesigned, onStatusUpdated]);
 
   if (loading) {
     return (
@@ -81,7 +90,7 @@ export const BudgetsClient = () => {
             </p>
           </div>
           <div className="text-xs text-slate-400">
-            Auto-refreshing every 5s
+            {isConnected ? '🟢 Real-time updates' : '🟡 Polling every 10s'}
           </div>
         </div>
       </header>

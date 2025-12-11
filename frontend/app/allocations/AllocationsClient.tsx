@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { AllocationList } from "../components/AllocationList";
+import { useSocket } from "../hooks/useSocket";
 import type { BudgetAllocationItem } from "@/types/allocation";
 
 export const AllocationsClient = () => {
   const [allocations, setAllocations] = useState<BudgetAllocationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  const { isConnected, onBudgetAllocated } = useSocket();
 
   const fetchAllocations = async () => {
     try {
@@ -31,12 +33,30 @@ export const AllocationsClient = () => {
     }
   };
 
+  // Fetch on mount
   useEffect(() => {
     fetchAllocations();
-    // Auto-refresh every 5 seconds (reduced to prevent excessive API calls)
-    const interval = setInterval(fetchAllocations, 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Fallback polling if WebSocket is disconnected (every 10 seconds)
+  useEffect(() => {
+    if (!isConnected) {
+      const interval = setInterval(fetchAllocations, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
+  // Listen for WebSocket events
+  useEffect(() => {
+    const unsubscribe = onBudgetAllocated((data) => {
+      if (data.budget) {
+        // Refresh allocations list
+        fetchAllocations();
+      }
+    });
+
+    return unsubscribe;
+  }, [onBudgetAllocated]);
 
   if (loading) {
     return (
@@ -60,7 +80,7 @@ export const AllocationsClient = () => {
             </p>
           </div>
           <div className="text-xs text-slate-400">
-            Auto-refreshing every 5s
+            {isConnected ? '🟢 Real-time updates' : '🟡 Polling every 10s'}
           </div>
         </div>
       </header>

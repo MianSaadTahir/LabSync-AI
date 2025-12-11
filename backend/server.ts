@@ -12,13 +12,27 @@ const startServer = async (): Promise<void> => {
   try {
     await connectDB();
     
-    // Register Telegram webhook on server startup
-    const webhookRegistered = await registerTelegramWebhook();
-    
-    // Show current webhook info for debugging
-    if (webhookRegistered) {
-      await getTelegramWebhookInfo();
-    }
+    // Register Telegram webhook on server startup (non-blocking with retries)
+    // Don't wait for it - server will start even if webhook registration fails
+    // Will automatically retry up to 3 times with exponential backoff
+    registerTelegramWebhook(3)
+      .then((webhookRegistered) => {
+        if (webhookRegistered) {
+          // Show current webhook info for debugging
+          setTimeout(() => {
+            getTelegramWebhookInfo().catch(() => {
+              // Silently fail - not critical
+            });
+          }, 2000); // Wait 2 seconds before checking webhook info
+        } else {
+          console.log('[Telegram Webhook] Webhook registration failed after all retries, but server will continue');
+          console.log('   You can manually register the webhook later or it will retry on next restart');
+        }
+      })
+      .catch((error) => {
+        console.warn('[Telegram Webhook] Error during registration (non-critical):', error instanceof Error ? error.message : 'Unknown error');
+        console.warn('   Server will continue running. Webhook can be registered manually.');
+      });
     
     // Start background processor for retrying failed operations
     const backgroundProcessor = getBackgroundProcessor();
