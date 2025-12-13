@@ -118,7 +118,7 @@ Open the dashboard at `http://localhost:3000`
 
 ### 5. Telegram Webhook Setup
 
-> ⚠️ Telegram API may be blocked in **Pakistan**. Use a VPN to register webhooks and receive messages.
+> ⚠️ Telegram API may be blocked in **Pakistan**. Use a VPN to register webhook and receive messages.
 
 **Start ngrok:**
 
