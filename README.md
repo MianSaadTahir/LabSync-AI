@@ -3,13 +3,13 @@
 LabSync AI is an automated budget management system that uses AI to extract project requirements from Telegram messages, design optimal budgets, and track allocations through a real-time dashboard.
 
 ## Table of Contents
+
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Technologies Used](#technologies-used)
 - [Prerequisites](#prerequisites)
-- [Installation & Setup](#installation--setup)
 - [Usage](#usage)
-- [API Documentation](#api-documentation)
+- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 
 ## Features
@@ -24,11 +24,17 @@ LabSync AI is an automated budget management system that uses AI to extract proj
 
 ## Screenshots
 
-[Add your screenshots here]
+<img src="/assets/1.png" alt="1" width="75%">
+<img src="/assets/2.png" alt="2" width="75%">
+<img src="/assets/3.png" alt="3" width="75%">
+<img src="/assets/4.png" alt="4" width="75%">
+<img src="/assets/5.png" alt="5" width="75%">
+<img src="/assets/6.png" alt="6" width="75%">
 
 ## Technologies Used
 
 **Backend:**
+
 - Node.js, Express.js, TypeScript
 - MongoDB + Mongoose
 - Socket.io (WebSocket)
@@ -36,13 +42,15 @@ LabSync AI is an automated budget management system that uses AI to extract proj
 - Model Context Protocol (MCP)
 
 **Frontend:**
-- Next.js 16, React 19
+
+- Next.js, React 19
 - TypeScript, Tailwind CSS
 - Socket.io Client
 
-**AI/ML:**
-- Google Gemini 1.5 Flash
-- MCP Agents (Budget Design, Meeting Extraction)
+**Agentic AI:**
+
+- Google Gemini Flash
+- MCP Agents
 
 ## Prerequisites
 
@@ -51,299 +59,154 @@ LabSync AI is an automated budget management system that uses AI to extract proj
 - **Telegram Bot Token** - Get from [@BotFather](https://t.me/botfather)
 - **Gemini API Keys** - Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-## Installation & Setup
+## Usage
 
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone https://github.com/your-repo/labsync-ai.git
+git clone https://github.com/MianSaadTahir/LabSync-AI
 cd labsync-ai
 npm install
 ```
 
-This automatically installs dependencies for all packages (frontend, backend, agents, MCP server).
-
 ### 2. Environment Configuration
 
-**Backend** (`backend/.env`):
 ```bash
-# MongoDB
-MONGODB_URI=mongodb://localhost:27017/labsync-ai
-
-# Server
-PORT=4000
-NODE_ENV=development
-
-# Gemini API Keys (at least one required)
-GEMINI_API_KEY=your_primary_key_here
-GEMINI_API_KEY_SECONDARY=your_secondary_key_here
-GEMINI_API_KEY_TERTIARY=your_tertiary_key_here
-
-# Telegram Bot (optional)
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-TELEGRAM_WEBHOOK_URL=https://your-ngrok-url.ngrok-free.app/api/webhook/telegram
+cp .env.example backend/.env
+cp .env.example frontend/.env.local
 ```
 
-**Frontend** (`frontend/.env.local`):
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-```
+Update:
+
+- MONGODB_URI
+- TELEGRAM_BOT_TOKEN
+- TELEGRAM_WEBHOOK_URL
+- GEMINI_API_KEY
 
 ### 3. Start MongoDB
 
 **Windows:**
+
 ```bash
 net start MongoDB
 ```
 
 **Mac:**
+
 ```bash
 brew services start mongodb-community
 ```
 
 **Linux:**
+
 ```bash
 sudo systemctl start mongod
 ```
 
 ### 4. Run the Project
 
-**Full Stack (Recommended):**
 ```bash
 npm run dev
 ```
 
 This starts:
-- Backend on `http://localhost:4000`
+
 - Frontend on `http://localhost:3000`
+- Backend on `http://localhost:4000`
 - MCP servers for AI agents
 - WebSocket server
 
-**Or run separately:**
-```bash
-# Backend only
-npm run dev:backend
+Open the dashboard at `http://localhost:3000`
 
-# Frontend only
-npm run dev:frontend
-```
+### 5. Telegram Webhook Setup
 
-## Usage
-
-### 1. Access the Dashboard
-
-Open your browser:
-- **Dashboard**: `http://localhost:3000`
-- **API Health**: `http://localhost:4000/health`
-
-### 2. Telegram Webhook Setup
+> **⚠️ Note for Pakistan Users**: Telegram API may be blocked in Pakistan. Use a VPN to register webhooks and receive messages.
 
 **Start ngrok:**
+
 ```bash
 ngrok http 4000
 ```
 
 **Register webhook** (open in browser):
+
 ```
 https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<YOUR_NGROK_URL>/api/webhook/telegram
 ```
 
 Expected response:
+
 ```json
 { "ok": true, "result": true, "description": "Webhook was set" }
 ```
 
-### 3. Test the Workflow
+### 6. Test the Workflow
 
 1. Open your Telegram bot → Send a message like:
    ```
-   I need a website for my clothing store. 
-   Budget is 50,000 PKR. Timeline: 3 weeks.
+   I need a modern and responsive e-commerce website for apparel products. My estimated budget is 75,000 USD, with a delivery timeline of 5 weeks.
    ```
-
-2. Backend logs show incoming message:
-   ```
-   [Telegram Webhook] Received message from user...
-   [MeetingExtractionAgent] Processing message...
-   ```
-
-3. View stored messages:
-   ```
-   GET http://localhost:4000/api/messages
-   ```
-
-4. Check dashboard: `http://localhost:3000/messages`
-
-### 4. AI Features
-
-**Extract Project Requirements:**
-```bash
-POST http://localhost:4000/api/extraction/extract/:messageId
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "projectTitle": "Clothing Store Website",
-    "budget": 50000,
-    "timeline": "3 weeks",
-    "requirements": ["website", "e-commerce", ...]
-  }
-}
-```
-
-**Generate AI Budget Design:**
-```bash
-POST http://localhost:4000/api/budget/design
-Content-Type: application/json
-
-{
-  "projectTitle": "Clothing Store Website",
-  "totalBudget": 50000,
-  "requirements": ["frontend", "backend", "hosting"]
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "budget": {
-    "categories": [
-      {
-        "name": "Development",
-        "allocated": 30000,
-        "description": "Frontend and backend development"
-      },
-      ...
-    ]
-  }
-}
-```
-
-## API Documentation
-
-### Messages
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/messages` | List all messages |
-| `GET` | `/api/messages/:id` | Get message by ID |
-| `POST` | `/api/webhook/telegram` | Telegram webhook receiver |
-
-### Extraction
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/extraction/extract/:messageId` | Extract project info from message |
-| `GET` | `/api/extraction/:messageId` | Get extraction result |
-
-### Budget
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/budget/design` | Generate AI budget design |
-| `GET` | `/api/budget` | List all budgets |
-| `POST` | `/api/budget` | Create new budget |
-| `GET` | `/api/budget/:id` | Get budget by ID |
-| `PUT` | `/api/budget/:id` | Update budget |
-
-### Health
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | System health check |
-
-## Project Structure
-
-```
-labsync-ai/
-├── frontend/           # Next.js React app (port 3000)
-│   ├── app/            # Pages and routes
-│   ├── components/     # React components
-│   └── lib/            # Utilities
-├── backend/            # Express.js API (port 4000)
-│   ├── src/
-│   │   ├── controllers/  # Route handlers
-│   │   ├── models/       # MongoDB schemas
-│   │   ├── services/     # Business logic
-│   │   └── utils/        # Helper functions
-│   └── .env            # Configuration
-├── mcp-server/         # AI agent services
-│   └── src/
-│       ├── tools/      # MCP tools
-│       └── server.ts   # MCP server
-├── agents/             # AI agents
-│   ├── BudgetDesignAgent.ts
-│   └── MeetingExtractionAgent.ts
-└── shared/             # Shared types & utilities
-```
-
-## Available Commands
-
-```bash
-# Development
-npm run dev              # Run full stack
-npm run dev:backend      # Backend only
-npm run dev:frontend     # Frontend only
-
-# Build
-npm run build:all        # Production build
-npm run build:libs       # Build shared libraries
-
-# Utilities
-npm run check:mongodb    # Verify MongoDB
-npm run verify           # System health check
-npm run reinstall        # Clean reinstall
-npm run clean            # Remove node_modules
-```
+2. Check backend logs for incoming message.
+3. View messages on dashboard: `http://localhost:3000/messages`
+4. AI will automatically extract project details
 
 ## Troubleshooting
 
-### Port Already in Use
-```bash
-# Kill Node processes
-pkill -f node
+### Telegram Connection Timeout
 
-# Or on Windows
-Get-Process | Where-Object {$_.ProcessName -like "*node*"} | Stop-Process -Force
-```
+- Enable VPN (especially in Pakistan)
+- Verify bot token is correct
+- Check ngrok is running
 
 ### MongoDB Connection Error
+
 ```bash
-# Check MongoDB status
 npm run check:mongodb
-
-# Start MongoDB
-brew services start mongodb-community  # Mac
-net start MongoDB                       # Windows
-sudo systemctl start mongod            # Linux
 ```
 
-### Gemini API Error: Model Not Found
-Update model name in agent files to use:
-```typescript
-model: "gemini-1.5-flash-latest"
-// or
-model: "gemini-2.0-flash-exp"
-```
+### macOS Setup Issues
 
-### Dependencies Issues
+#### Permission denied for `tsc`, `tsx`, `next`, `concurrently`
+
 ```bash
-npm run reinstall
+sh: node_modules/.bin/tsc: Permission denied
+sh: node_modules/.bin/tsx: Permission denied
+sh: node_modules/.bin/next: Permission denied
+sh: node_modules/.bin/concurrently: Permission denied
+```
+
+**Cause:** macOS blocks execution permission on some binaries.
+
+**Fix:** Run this once at project root:
+
+```bash
+chmod -R +x node_modules/.bin
+chmod -R +x backend/node_modules/.bin
+chmod -R +x frontend/node_modules/.bin
+chmod -R +x shared/node_modules/.bin
+chmod -R +x agents/node_modules/.bin
+chmod -R +x mcp-server/node_modules/.bin
+xattr -dr com.apple.quarantine .
+xattr -dr com.apple.quarantine node_modules
+```
+
+### Gemini API Error
+
+Update model name in agent files to:
+
+```typescript
+model: "gemini-flash-latest";
+```
+
+### Port Already in Use
+
+```bash
+# Kill node processes
+pkill -f node  # Mac/Linux
+# Or use Task Manager on Windows
 ```
 
 ## Contributing
 
 Contributions, issues, and feature requests are welcome!  
-Feel free to check the [issues page](https://github.com/your-repo/labsync-ai/issues).
-
-## License
-
-This project is proprietary and intended for internal use.
-
----
-
-**Made with ❤️ using Next.js, Express, and Gemini AI**
+Feel free to check the [issues page](https://github.com/MianSaadTahir/LabSync-AI/issues).
