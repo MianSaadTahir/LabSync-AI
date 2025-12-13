@@ -54,4 +54,3 @@ shared/node_modules/
 # Backend
 backend/dist/
 backend/node_modules/
-*.md
