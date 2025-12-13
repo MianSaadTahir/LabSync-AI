@@ -1,0 +1,28 @@
+{
+    "name": "labsync-ai-root",
+    "version": "1.0.0",
+    "description": "Root package to manage LabSync AI Budgeting System - Complete Automation",
+    "private": true,
+    "scripts": {
+        "postinstall": "npm install --prefix shared --legacy-peer-deps && npm install --prefix agents --legacy-peer-deps && npm install --prefix mcp-server --legacy-peer-deps && npm install --prefix backend --legacy-peer-deps && npm install --prefix frontend --legacy-peer-deps",
+        "build:libs": "npm run build --prefix shared && npm run build --prefix agents && npm run build --prefix mcp-server",
+        "verify": "node verify.js",
+        "prepare:env": "node setup.js",
+        "check:mongodb": "node ensure-mongodb.js",
+        "dev": "npm run check:mongodb && npm run prepare:env && npm run build:libs && concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+        "dev:backend": "npm run prepare:env && npm run dev --prefix backend",
+        "dev:frontend": "npm run prepare:env && npm run dev --prefix frontend",
+        "build:all": "npm run prepare:env && npm run build:libs && npm run build --prefix agents && npm run build --prefix mcp-server && npm run build --prefix backend && npm run build --prefix frontend",
+        "clean": "PowerShell -Command \"Get-ChildItem -Path .,'shared','agents','mcp-server','backend','frontend' -Filter 'node_modules' -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue\"",
+        "reinstall": "npm run clean && npm install"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.0"
+    },
+    "workspaces": [
+        "agents",
+        "mcp-server",
+        "backend",
+        "frontend"
+    ]
+}
