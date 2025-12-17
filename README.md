@@ -36,14 +36,13 @@ LabSync AI is an automated budget management system that uses AI to extract proj
 **Backend:**
 
 - Node.js, Express.js, TypeScript
-- MongoDB + Mongoose
-- Socket.io (WebSocket)
+- MongoDB
+- Socket.io
 
 **Frontend:**
 
-- Next.js, React 19
+- Next.js, React
 - TypeScript, Tailwind CSS
-- Socket.io Client
 
 **Agentic AI:**
 
@@ -211,3 +210,4 @@ Feel free to check the [issues page](https://github.com/MianSaadTahir/LabSync-AI
 ## License
 
 This project is open source and available under the MIT [License](https://github.com/MianSaadTahir/LabSync-AI/blob/main/LICENSE).
+
