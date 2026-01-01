@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SocketStatusProvider } from "./components/SocketStatusProvider";
+import { AutoNavigator } from "./components/AutoNavigator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({
               </nav>
             </div>
           </header>
+          <AutoNavigator />
           <div className="flex-1">{children}</div>
           <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
             © 2025 LabSync AI — All Rights Reserved
