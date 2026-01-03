@@ -107,11 +107,11 @@ const geminiKey2 = backendEnvContent.includes("GEMINI_API_KEY_2=AIzaSy");
 const geminiKey3 = backendEnvContent.includes("GEMINI_API_KEY_3=AIzaSy");
 const geminiKey4 = backendEnvContent.includes("GEMINI_API_KEY_4=AIzaSy");
 
-if (geminiKey1 && geminiKey2 && geminiKey3) {
-  console.log("   ✅ Gemini API Keys: Configured (3 keys)");
+if (geminiKey1 && geminiKey2 && geminiKey3 && geminiKey4) {
+  console.log("   ✅ Gemini API Keys: Configured (4 keys)");
 } else if (geminiKey1) {
   console.log(
-    "   ⚠️  Gemini API Keys: Only 1 key configured (2 more recommended)"
+    "   ⚠️  Gemini API Keys: Only 1 key configured (3 more recommended)"
   );
 } else {
   console.log(
