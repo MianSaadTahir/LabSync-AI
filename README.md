@@ -122,7 +122,7 @@ Now that Ngrok is running, register your webhook to receive messages.
 
 ## Documentation
 
-For detailed documentation, please refer to the [Documentation](https://github.com/MianSaadTahir/LabSync360/assets/Documentation/).
+For detailed documentation, please refer to the [Documentation](https://github.com/MianSaadTahir/LabSync360/tree/main/assets/Documentation).
 
 ## Contributing
 
