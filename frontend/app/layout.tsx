@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LabSync AI",
+  title: "LabSync 360",
   description:
     "Telegram-powered client intake dashboard for capturing and displaying incoming bot messages.",
 };
@@ -35,7 +35,7 @@ export default function RootLayout({
           <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
               <Link href="/" className="text-lg font-semibold text-slate-900">
-                LabSync AI
+                LabSync 360
               </Link>
               <nav className="flex items-center gap-4 text-sm font-medium text-slate-600">
                 <Link href="/" className="hover:text-slate-900">
@@ -60,7 +60,7 @@ export default function RootLayout({
           <AutoNavigator />
           <div className="flex-1">{children}</div>
           <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-            © 2025 LabSync AI — All Rights Reserved
+            © 2025 LabSync 360 — All Rights Reserved
           </footer>
         </div>
       </body>

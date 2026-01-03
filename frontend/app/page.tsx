@@ -36,7 +36,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-[80vh] w-full max-w-4xl flex-col justify-center gap-6 px-6 py-20">
       <p className="text-base font-semibold uppercase tracking-widest text-blue-500">
-        LabSync AI
+        LabSync 360
       </p>
       <h1 className="text-4xl font-bold text-slate-900 sm:text-5xl">
         Smart Client Intake via Telegram
