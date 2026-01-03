@@ -8,6 +8,7 @@ An automated, AI-driven project budget management system designed to streamline 
 - [Screenshots](#screenshots)
 - [Technologies](#technologies)
 - [Usage](#usage)
+- [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -118,6 +119,10 @@ Now that Ngrok is running, register your webhook to receive messages.
 1.  Open your bot in Telegram.
 2.  Send a project requirement message.
 3.  Check the Dashboard at [http://localhost:3000/messages](http://localhost:3000/messages).
+
+## Documentation
+
+For detailed documentation, please refer to the [Documentation](https://github.com/MianSaadTahir/LabSync360/assets/Documentation/).
 
 ## Contributing
 
