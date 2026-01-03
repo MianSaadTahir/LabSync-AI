@@ -14,9 +14,9 @@ An automated, AI-driven project budget management system designed to streamline 
 ## Features
 
 - **Telegram Integration**: Seamless communication channel for capturing client requirements via webhooks.
-- **Agentic AI Workflow**: Autonomous agents utilizing MCP server for complex budget planning and decision-making.
+- **MCP Server**: Autonomous agents utilizing MCP server for respective tasks.
 - **Automated Extraction**: Meeting Extraction Agent parses natural language messages to identify project scope, goals, and timelines.
-- **Smart Budget Design**: Generates optimized financial plans and resource allocations based on extracted data.
+- **Smart Budget Design**: Budget Design Agent generates optimized financial plans and Budget Allocation Agent allocates resource based on extracted data.
 - **Real-time Dashboard**: Interactive Next.js frontend with Socket.io for live updates on messages and budgets.
 - **Scalable Architecture**: Powered by Node.js, Express, and MongoDB for robust data handling.
 
@@ -67,7 +67,7 @@ cp .env.example frontend/.env.local
 
 Ensure your MongoDB service is running.
 
-- **macOS (Homebrew)**: `brew services start mongodb-community`
+- **macOS**: `brew services start mongodb-community`
 - **Windows**: `net start MongoDB`
 - **Linux**: `sudo systemctl start mongod`
 
@@ -126,4 +126,5 @@ Contributions are welcome! Please check the [Issues page](https://github.com/Mia
 ## License
 
 This project is licensed under the [MIT License](https://github.com/MianSaadTahir/LabSync360/blob/main/LICENSE).
+
 
